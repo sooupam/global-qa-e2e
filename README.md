@@ -103,10 +103,10 @@ tests/
 ├── dashboard-kpis.spec.ts                # dashboard renderiza + 1 KPI core (2 tests)
 ├── homolog-login-rededor.spec.ts         # login Rede D'Or sem 4xx em user_active_company
 ├── homolog-pamella-bugs.spec.ts          # 5 P0 de regressão (RLS, triggers, cache)
-├── modules-load.spec.ts                  # 9 módulos core CMMS booting sem error boundary
+├── modules-load.spec.ts                  # 11 módulos core booting sem error boundary (inclui cockpit + notifications)
 ├── multi-tenancy.spec.ts                 # RLS + companies retornam tenant_id correto
 ├── permissions-basic.spec.ts             # RBAC consolidado: owner/manager/tech/viewer (4 tests)
-├── public-routes.spec.ts                 # 5 rotas públicas (sign-portal, qr, vendor, request, install)
+├── public-routes.spec.ts                 # 6 rotas públicas (sign-portal, qr, vendor, request, public-quote, install)
 ├── route-protection.spec.ts              # bloqueio sem sessão / por role (race waitForURL)
 ├── connectplus-automation/               # pipeline IoT (1 spec + helper)
 ├── connectplus-cadastro/                 # pipeline IoT (1 spec + helper)

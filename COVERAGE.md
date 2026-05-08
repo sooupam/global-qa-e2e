@@ -26,7 +26,7 @@ Estados:
 | **AI Hub gateway** | COBERTO | `ai-hub` (não 5xx) | Alto — 30% das features de IA | Zero |
 | **Bundle/SPA boot** | COBERTO | `modules-load` + `public-routes` | Alto — white-screen | Baixo |
 | **Dashboard core** | COBERTO | `dashboard-kpis` (renderiza + 1 KPI) | Alto — landing page | Baixo |
-| **Módulos core CMMS — page boot** | COBERTO | `modules-load` (9 paths: home, assets, os, MP, SR, employees, inventory, settings, sectors) | Alto — error boundary | Baixo (lista de strings) |
+| **Módulos core CMMS — page boot** | COBERTO | `modules-load` (11 paths: home, cockpit, assets, os, MP, SR, employees, inventory, settings, sectors, notifications) | Alto — error boundary | Baixo (lista de strings) |
 | **Módulos core CMMS — contrato funcional API** | COBERTO | `core-modules-functional` — GET REST nas tabelas base de assets, work-orders (view), maintenance-plans, service-requests, employees, inventory, automation, procedures | Alto — RLS deny-all, tabela renomeada, view quebrada, PostgREST 4xx | Médio (depende de nomes de tabelas) |
 | **Rotas públicas** | COBERTO | `public-routes` (5 paths: sign-portal, request, qr, vendor, install) | Alto — usuário externo bloqueado | Zero (HTTP-only) |
 | **Bugs P0 históricos** | COBERTO | `homolog-pamella-bugs` (5 PG codes específicos) | Alto se voltarem | Médio |

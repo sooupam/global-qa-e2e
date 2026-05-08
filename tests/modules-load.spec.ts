@@ -17,6 +17,7 @@ import { waitForApp } from './helpers/navigation';
 
 const MODULES: Array<{ path: string; name: string }> = [
   { path: '/', name: 'home' },
+  { path: '/cockpit', name: 'cockpit (Dashboard persona-aware)' },
   { path: '/assets', name: 'assets' },
   { path: '/os', name: 'work-orders' },
   { path: '/maintenance-plans', name: 'maintenance-plans' },
@@ -25,6 +26,7 @@ const MODULES: Array<{ path: string; name: string }> = [
   { path: '/inventory', name: 'inventory' },
   { path: '/settings', name: 'settings' },
   { path: '/sectors', name: 'sectors' },
+  { path: '/notifications', name: 'notifications (inbox de alertas)' },
 ];
 
 test.describe('Module boot — smoke', () => {

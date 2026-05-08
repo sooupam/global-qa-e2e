@@ -25,6 +25,7 @@ const PUBLIC_ROUTES: Array<{ path: string; name: string }> = [
   { path: '/request/new', name: 'request/new (cliente abre SR pública)' },
   { path: '/qr/asset/smoke-id', name: 'qr-landing (field worker via QR)' },
   { path: '/vendor/onboarding/smoke-token', name: 'vendor-onboarding (fornecedor)' },
+  { path: '/public/quote/smoke-token', name: 'public-quote (cliente recebe cotação comercial)' },
   { path: '/install', name: 'pwa-install' },
 ];
 

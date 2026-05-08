@@ -1,0 +1,23 @@
+{
+  "name": "global-qa-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Suíte E2E de smoke do GT ONE — curada do legado para detectar colapso crítico.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^22.19.15",
+    "dotenv": "^16.4.5",
+    "mqtt": "^5.10.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

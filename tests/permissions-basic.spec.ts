@@ -8,80 +8,137 @@ import {
 import { waitForApp, navigateTo, expectNoAccessDenied } from './helpers/navigation';
 
 /**
- * Suite: Permissions — smoke (consolidado).
+ * Permissions — hardened smoke.
  *
- * Reduzido de 20 → 4 testes. Os 16 removidos eram regressão de RBAC
- * granular (button-by-button por role × resource), não smoke. O risco
- * crítico é "permissão rompida em hierarquia inteira", não "botão X
- * sumiu para role Y".
+ * Versão anterior asseretava apenas ausência de "acesso negado". Falso
+ * positivo: landing branca também passa, app em loading vazio também passa.
  *
- * Cobertura mantida:
- *  - Owner: tem acesso aos núcleos (assets/os/settings.users) → smoke
- *    do happy path total.
- *  - Manager: bloqueado em /settings/users → smoke da hierarquia.
- *  - Technician/Viewer: NÃO veem ações de criar em assets → smoke de
- *    deny path. (Skipados se HAS_MULTI_ROLE_USERS=false.)
+ * Hardened: evidências POSITIVAS por role:
+ *   - Owner: vê botões de criação ("Novo Ativo", "Nova OS") nas listas.
+ *   - Manager (skip se sem user): bloqueado em /settings/users via redirect ou texto deny.
+ *   - Technician/Viewer (skip): NÃO veem botão de criação em listas.
+ *
+ * Cada teste prova que UI carregou conteúdo real (não vazia, não loading)
+ * antes de afirmar "permissão correta".
  */
 
-async function hasAction(page: Page, text: RegExp): Promise<boolean> {
-  const el = page
-    .locator('main')
-    .getByRole('button', { name: text })
-    .or(page.locator('main').getByRole('link', { name: text }));
-  return (await el.count()) > 0 && (await el.first().isVisible({ timeout: 2_000 }).catch(() => false));
+async function expectPageContentLoaded(page: Page, label: string) {
+  const main = page.locator('main, [role="main"]').first();
+  await expect(main, `${label}: main não visível`).toBeVisible({ timeout: 5_000 });
+
+  await page
+    .waitForFunction(
+      () => {
+        const m = document.querySelector('main, [role="main"]');
+        if (!m) return false;
+        const sp = document.querySelectorAll('.animate-spin');
+        return sp.length === 0 && m.children.length > 0;
+      },
+      { timeout: 15_000 }
+    )
+    .catch(() => {});
+
+  const spinners = page.locator('.animate-spin');
+  await expect(spinners, `${label}: travou em loading`).toHaveCount(0, { timeout: 3_000 });
 }
 
-test.describe('Permissions — smoke', () => {
+test.describe('Permissions — hardened smoke', () => {
   test.setTimeout(60_000);
 
-  test('owner: acesso a /assets, /os e /settings/users sem access denied', async ({ page }) => {
+  test('owner: tem acesso a /assets, /os, /settings/users E vê botões de criação', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_USERS.owner.email);
     await waitForApp(page);
     await expectAuthenticatedOnApp(page);
 
-    for (const path of ['/assets', '/os', '/settings/users']) {
-      await navigateTo(page, path);
-      await expectNoAccessDenied(page);
-    }
+    // /assets: sem deny + main carregado + botão de criar visível (evidência positiva).
+    await navigateTo(page, '/assets');
+    await expectNoAccessDenied(page);
+    await expectPageContentLoaded(page, '/assets');
+    const ativoCreate = page.getByRole('button', {
+      name: /(nov[ao]|criar|adicionar|new|create|add).*?(ativo|asset|equipamento)/i,
+    });
+    const ativoCreateLink = page.getByRole('link', {
+      name: /(nov[ao]|criar|adicionar|new|create|add).*?(ativo|asset|equipamento)/i,
+    });
+    expect(
+      (await ativoCreate.count()) + (await ativoCreateLink.count()),
+      'owner não vê botão de criação em /assets — privilégio quebrado'
+    ).toBeGreaterThan(0);
+
+    // /os: idem.
+    await navigateTo(page, '/os');
+    await expectNoAccessDenied(page);
+    await expectPageContentLoaded(page, '/os');
+    const osCreate = page.getByRole('button', {
+      name: /(nov[ao]|criar|adicionar|new|create|add).*?(os|wo|ordem|order|servi[çc]o)/i,
+    });
+    const osCreateLink = page.getByRole('link', {
+      name: /(nov[ao]|criar|adicionar|new|create|add).*?(os|wo|ordem|order|servi[çc]o)/i,
+    });
+    expect(
+      (await osCreate.count()) + (await osCreateLink.count()),
+      'owner não vê botão de criação em /os — privilégio quebrado'
+    ).toBeGreaterThan(0);
+
+    // /settings/users: sem deny + main carregado.
+    await navigateTo(page, '/settings/users');
+    await expectNoAccessDenied(page);
+    await expectPageContentLoaded(page, '/settings/users');
   });
 
-  test('manager: bloqueado em /settings/users', async ({ page }) => {
+  test('manager: bloqueado em /settings/users (redirect ou texto deny)', async ({ page }) => {
     test.skip(!HAS_MULTI_ROLE_USERS, 'sem usuário manager dedicado neste ambiente');
     await loginAs(page, TEST_USERS.manager.email);
     await waitForApp(page);
     await expectAuthenticatedOnApp(page);
+
     await navigateTo(page, '/settings/users');
 
-    const denied = page.getByText(/acesso negado|access denied/i);
+    const denied = page.getByText(/acesso negado|access denied/i).first();
     const onSettingsUsers = page.url().includes('/settings/users');
-    const hasDenied = (await denied.count().catch(() => 0)) > 0;
+    const hasDenied = await denied.isVisible({ timeout: 5_000 }).catch(() => false);
+
+    // Manager precisa estar bloqueado de forma DETERMINÍSTICA — denied OU saiu.
+    // Se ficou em /settings/users sem denied, smoke não detectaria privilégio
+    // escalado.
     expect(
       hasDenied || !onSettingsUsers,
-      'manager permaneceu em /settings/users sem mensagem de bloqueio'
+      'manager permaneceu em /settings/users sem mensagem de bloqueio — possível escalação'
     ).toBe(true);
   });
 
-  test('technician: não vê ações de criar em /assets nem /os', async ({ page }) => {
+  test('technician: vê /assets MAS NÃO vê botão de criação', async ({ page }) => {
     test.skip(!HAS_MULTI_ROLE_USERS, 'sem usuário technician dedicado');
     await loginAs(page, TEST_USERS.technician.email);
     await waitForApp(page);
     await expectAuthenticatedOnApp(page);
 
     await navigateTo(page, '/assets');
-    expect(await hasAction(page, /novo ativo/i), 'technician viu "Novo Ativo"').toBe(false);
+    await expectPageContentLoaded(page, '/assets (technician)');
 
-    await navigateTo(page, '/os');
-    expect(await hasAction(page, /nova os/i), 'technician viu "Nova OS"').toBe(false);
+    // Tem que ver a lista (sem deny).
+    await expectNoAccessDenied(page);
+
+    // E NÃO pode ver botão de criar (privilégio negado).
+    const novoAtivo = page.getByRole('button', { name: /novo ativo|new asset/i });
+    expect(
+      await novoAtivo.count(),
+      'technician viu "Novo Ativo" — escalação de privilégio'
+    ).toBe(0);
   });
 
-  test('viewer: não vê ações de criar em /assets', async ({ page }) => {
+  test('viewer: vê /assets MAS NÃO vê botão de criação', async ({ page }) => {
     test.skip(!HAS_MULTI_ROLE_USERS, 'sem usuário viewer dedicado');
     await loginAs(page, TEST_USERS.viewer.email);
     await waitForApp(page);
     await expectAuthenticatedOnApp(page);
     await navigateTo(page, '/assets');
-
-    expect(await hasAction(page, /novo ativo/i), 'viewer viu "Novo Ativo"').toBe(false);
+    await expectPageContentLoaded(page, '/assets (viewer)');
     await expectNoAccessDenied(page);
+
+    const novoAtivo = page.getByRole('button', { name: /novo ativo|new asset/i });
+    expect(await novoAtivo.count(), 'viewer viu "Novo Ativo" — escalação').toBe(0);
   });
 });

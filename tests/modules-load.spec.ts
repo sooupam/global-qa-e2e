@@ -3,16 +3,19 @@ import { loginAs, TEST_USERS, expectAuthenticatedOnApp } from './helpers/auth';
 import { waitForApp } from './helpers/navigation';
 
 /**
- * Smoke: Module boot loop.
+ * Smoke: Module boot — hardened.
  *
- * Cobre as 7 rotas core CMMS num único teste com `test.step`. Não valida
- * conteúdo específico (UI muda) — só asserta que cada módulo:
- *   1. Não caiu em error boundary do React ("algo deu errado").
- *   2. Não redirecionou para /login (sessão preservada).
+ * Versão anterior validava apenas:
+ *   - sem error boundary
+ *   - URL não em /login
  *
- * Detecta colapso de bundle/route, regressão grave em hook de domínio,
- * RLS quebrada em alguma página. NÃO detecta bugs de UI específica —
- * isso é regressão, não smoke.
+ * Falso positivo: página em loading infinito OU main vazia passavam.
+ *
+ * Versão hardened — 4 evidências positivas por módulo:
+ *   1. Sem error boundary
+ *   2. URL não em /login (sessão preservada)
+ *   3. Spinners de loading sumiram em ≤ 15s
+ *   4. main element existe E tem ao menos 1 child (conteúdo renderizado)
  */
 
 const MODULES: Array<{ path: string; name: string }> = [
@@ -29,10 +32,10 @@ const MODULES: Array<{ path: string; name: string }> = [
   { path: '/notifications', name: 'notifications (inbox de alertas)' },
 ];
 
-test.describe('Module boot — smoke', () => {
-  test.setTimeout(120_000);
+test.describe('Module boot — hardened smoke', () => {
+  test.setTimeout(180_000);
 
-  test('módulos críticos carregam sem error boundary nem perda de sessão', async ({ page }) => {
+  test('módulos críticos renderizam conteúdo real (não loading vazio)', async ({ page }) => {
     await loginAs(page, TEST_USERS.admin.email);
     await waitForApp(page);
     await expectAuthenticatedOnApp(page);
@@ -40,13 +43,40 @@ test.describe('Module boot — smoke', () => {
     for (const { path, name } of MODULES) {
       await test.step(name, async () => {
         await page.goto(path);
+
+        // 1. Sem error boundary
         const errorBoundary = page.getByText(/algo deu errado|something went wrong/i).first();
         await expect(errorBoundary, `${name} caiu em error boundary`).toHaveCount(0, {
           timeout: 5_000,
         });
+
+        // 2. Sessão preservada
         await expect(page, `${name} redirecionou para /login`).not.toHaveURL(/\/login/, {
           timeout: 1_000,
         });
+
+        // 3 + 4. Conteúdo realmente renderizou: spinners limpos E main com filhos.
+        await page
+          .waitForFunction(
+            () => {
+              const main = document.querySelector('main, [role="main"]');
+              if (!main) return false;
+              const spinners = document.querySelectorAll('.animate-spin');
+              if (spinners.length > 0) return false;
+              return main.children.length > 0;
+            },
+            { timeout: 30_000 }
+          )
+          .catch(() => {});
+
+        const main = page.locator('main, [role="main"]').first();
+        await expect(main, `${name}: main element não visível`).toBeVisible({ timeout: 3_000 });
+
+        const spinners = page.locator('.animate-spin');
+        await expect(
+          spinners,
+          `${name}: travou em loading (spinners não desapareceram em 15s)`
+        ).toHaveCount(0, { timeout: 3_000 });
       });
     }
   });

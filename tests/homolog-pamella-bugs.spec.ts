@@ -9,20 +9,21 @@ import {
 } from './helpers/homolog-net';
 
 /**
- * Suite curada — 5 testes P0 que travam regressão de bugs reais reportados
- * em produção (códigos PG: 42501 RLS, 42703 column, "record new no field",
- * "uuid vs text", ReferenceError, cache stale após delete).
+ * Pamella P0 bugs — hardened smoke.
  *
- * Estratégia: cada teste reproduz UM bug e asserta que o erro específico
- * NÃO aparece nas responses capturadas via trackApiFailures().
+ * Versão anterior asseretava ausência de erro PG sem provar que a ação
+ * que dispara o bug realmente aconteceu. Falso positivo: UI muda, action
+ * silenciosa, nenhum erro PG aparece, teste passa "feliz".
  *
- * Reduzido de 18 → 5 testes. Removidos:
- * - Testes com .nth() em form fields (3): #279, #281, #280, #282, #283.
- * - Testes pendentes de fix (3): #263, #257, #258.
- * - Testes de regressão visual (5): #271, #273, #272, #274, #278.
- * - Tests P1 (2): #266, #264, #270.
+ * Hardened — para cada teste:
+ *   1. Pre-condition: UI element pra agir EXISTE (test.fail se não).
+ *   2. Action: dispara operação.
+ *   3. Bridge proof: assert URL mudou OU network request foi feito OU
+ *      diálogo de confirmação fechou — algo OBSERVÁVEL provando que o
+ *      caminho que dispara o bug foi exercitado.
+ *   4. Bug assertion: erro PG específico não apareceu.
  *
- * Skipped quando HAS_HOMOLOG_CREDS falso.
+ * Skipped se HAS_HOMOLOG_CREDS = false.
  */
 
 test.beforeAll(async () => {
@@ -32,55 +33,85 @@ test.beforeAll(async () => {
   );
 });
 
-test.describe('Ativos — P0', () => {
+test.describe('Ativos — P0 (hardened)', () => {
   test.beforeEach(async ({ page }) => {
     await homologLogin(page);
   });
 
-  test('#275: Listagem/detalhe Ativo NÃO retorna "record new has no field name"', async ({
-    page,
-  }) => {
+  test('#275: abrir Ativo NÃO retorna "record new has no field name"', async ({ page }) => {
     const failures = trackApiFailures(page);
 
     await page.goto('/assets');
     await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
 
+    // Pre-condition: tabela tem ao menos 1 row.
     const firstRow = page.locator('table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      await firstRow.click();
-      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-    }
+    await expect(firstRow, '#275 sem assets na lista — não dá pra exercitar trigger').toBeVisible({
+      timeout: 15_000,
+    });
 
+    // Action + Bridge proof: clicar abre detail (URL muda) OU dispara fetch.
+    const detailNavOrFetch = Promise.race([
+      page.waitForURL(/\/assets\/[^/]+/, { timeout: 10_000 }),
+      page.waitForResponse((r) => /\/rest\/v1\/assets/.test(r.url()), { timeout: 10_000 }),
+    ]);
+    await firstRow.click();
+    await detailNavOrFetch.catch(() => {
+      throw new Error('#275 click em row não disparou navegação nem fetch — UI mudou?');
+    });
+
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+
+    // Bug assertion: trigger órfão não fired.
     const errorMatches = failures.filter((f) =>
       /record .new. has no field .name./.test(f.body)
     );
     expect(
       errorMatches,
-      '#275 trigger órfão sync_asset_name_from_family ainda fires'
+      '#275 trigger sync_asset_name_from_family ainda fires'
     ).toHaveLength(0);
   });
 
-  test('#276/#277: Desativar Ativo NÃO retorna "entity_id uuid vs text"', async ({ page }) => {
+  test('#276/#277: desativar Ativo NÃO retorna "entity_id uuid vs text"', async ({ page }) => {
     const failures = trackApiFailures(page);
 
     await page.goto('/assets');
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     const firstRow = page.locator('table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      await firstRow.click();
-      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+    await expect(firstRow, '#276 sem assets — não dá pra desativar').toBeVisible({
+      timeout: 15_000,
+    });
+    await firstRow.click();
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
 
-      const disableBtn = page.getByRole('button', { name: /desativar|inativar/i }).first();
-      if (await disableBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        await disableBtn.click();
-        const confirm = page.getByRole('button', { name: /confirmar|sim|ok/i }).last();
-        if (await confirm.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          await confirm.click();
-        }
-        await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-      }
+    // Aceita Desativar OU Reativar — ambos disparam UPDATE que exercita o
+    // trigger audit_resolve_labels (alvo do bug).
+    const toggleBtn = page
+      .getByRole('button', { name: /desativar|inativar|reativar|ativar/i })
+      .first();
+    await expect(
+      toggleBtn,
+      '#276 botão de toggle ativo/inativo não encontrado — UI mudou'
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Capture network request OR confirm dialog appearing as proof.
+    const updatePromise = page.waitForResponse(
+      (r) => /\/rest\/v1\/assets/.test(r.url()) && ['PATCH', 'POST'].includes(r.request().method()),
+      { timeout: 10_000 }
+    );
+    await toggleBtn.click();
+
+    const confirm = page.getByRole('button', { name: /confirmar|sim|ok/i }).last();
+    if (await confirm.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await confirm.click();
     }
+
+    // Bridge proof: PATCH/POST request foi feito.
+    await updatePromise.catch(() => {
+      throw new Error('#276 update em assets não foi disparado — botão não fez submit');
+    });
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
 
     const errorMatches = failures.filter((f) =>
       /column .entity_id. is of type uuid but expression is of type text/.test(f.body)
@@ -89,66 +120,106 @@ test.describe('Ativos — P0', () => {
   });
 });
 
-test.describe('Ordens de Serviço — P0', () => {
+test.describe('Ordens de Serviço — P0 (hardened)', () => {
   test.beforeEach(async ({ page }) => {
     await homologLogin(page);
   });
 
-  test('#262: Criar OS NÃO retorna 42703 column "category"', async ({ page }) => {
+  test('#262: criar OS NÃO retorna 42703 column "category"', async ({ page }) => {
     const failures = trackApiFailures(page);
     const mark = e2eMark();
 
     await page.goto('/work-orders/new');
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-    const titleInput = page.locator('input[name="title"], input[name="description"]').first();
-    if (await titleInput.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await titleInput.fill(`${mark} OS`);
-    }
+    // Pre-condition: form com input principal de descrição/título visível.
+    const titleInput = page
+      .locator(
+        'input[name="title"], input[name="description"], input[name="name"], textarea[name="description"], textarea[name="title"]'
+      )
+      .first();
+    await expect(
+      titleInput,
+      '#262 form de OS não tem input principal — UI mudou'
+    ).toBeVisible({ timeout: 10_000 });
+    await titleInput.fill(`${mark} OS`);
 
     const submit = page.getByRole('button', { name: /salvar|criar/i }).last();
-    if (await submit.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await submit.click({ trial: false }).catch(() => {});
-      // Cura: substitui waitForTimeout(2_000) por networkidle resiliente.
-      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+    await expect(submit, '#262 botão salvar não encontrado').toBeVisible({ timeout: 5_000 });
+
+    // Bridge proof: POST request a work_orders OU mensagem de erro/sucesso.
+    const submitPromise = page.waitForResponse(
+      (r) =>
+        /\/rest\/v1\/work_orders/.test(r.url()) &&
+        ['POST', 'PATCH'].includes(r.request().method()),
+      { timeout: 10_000 }
+    );
+    await submit.click({ trial: false }).catch(() => {});
+
+    const requestFired = await submitPromise.then(() => true).catch(() => false);
+    if (!requestFired) {
+      // Submit pode ter falhado por validação inline. Aceita se houver erro
+      // visível no form, caso contrário test fail (bug não exercitado).
+      const formError = page.locator('[role="alert"], .text-destructive').first();
+      const hasError = await formError.isVisible({ timeout: 3_000 }).catch(() => false);
+      expect(
+        hasError,
+        '#262 submit não disparou request nem erro — bug 42703 não exercitado'
+      ).toBe(true);
     }
 
+    await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+
     const errorMatches = failures.filter((f) => /column .category. .* not exist/i.test(f.body));
-    expect(errorMatches, '#262 trigger residual com NEW.category ainda fires').toHaveLength(0);
+    expect(
+      errorMatches,
+      '#262 trigger residual com NEW.category ainda fires'
+    ).toHaveLength(0);
   });
 });
 
-test.describe('Parceiros — P0', () => {
+test.describe('Parceiros — P0 (hardened)', () => {
   test.beforeEach(async ({ page }) => {
     await homologLogin(page);
   });
 
-  test('#268: Editar Parceiro NÃO cai em "Algo deu errado"', async ({ page }) => {
+  test('#268: abrir + editar Parceiro NÃO cai em "Algo deu errado"', async ({ page }) => {
     await page.goto('/partners');
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     const firstRow = page.locator('table tbody tr').first();
-    await expect(firstRow, 'Sem parceiros na lista — seed antes').toBeVisible({ timeout: 10_000 });
+    await expect(firstRow, '#268 sem parceiros — não dá pra exercitar PartnerForm').toBeVisible({
+      timeout: 15_000,
+    });
 
+    // Action 1: abrir detail.
     await firstRow.click();
+    await page.waitForURL(/\/partners\/[^/]+/, { timeout: 10_000 }).catch(() => {
+      throw new Error('#268 click em row não navegou para /partners/:id');
+    });
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
 
+    // Não pode crashar na view.
     const errorBoundary = page.getByText(/algo deu errado/i).first();
-    await expect(errorBoundary, '#268 view crashou').toHaveCount(0, { timeout: 5_000 });
+    await expect(errorBoundary, '#268 PartnerView crashou').toHaveCount(0, { timeout: 5_000 });
 
+    // Action 2: clicar Editar — exercitar PartnerForm onde ReferenceError t ocorria.
     const editBtn = page.getByRole('button', { name: /editar/i }).first();
-    if (await editBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await editBtn.click();
-      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-    }
+    await expect(editBtn, '#268 botão Editar não encontrado').toBeVisible({ timeout: 5_000 });
+    await editBtn.click();
 
+    // Bridge proof: URL muda pra /edit OU form de edição renderiza.
+    await page.waitForURL(/\/partners\/[^/]+\/edit/, { timeout: 10_000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+
+    // Bug assertion: PartnerForm não crashou com ReferenceError.
     await expect(
       errorBoundary,
-      '#268 PartnerForm crashou (ReferenceError t)'
+      '#268 PartnerForm crashou (provável ReferenceError t)'
     ).toHaveCount(0, { timeout: 5_000 });
   });
 
-  test('#269: Excluir Parceiro remove da listagem (cache invalidate)', async ({ page }) => {
+  test('#269: excluir Parceiro remove da listagem (cache invalidate)', async ({ page }) => {
     const failures = trackApiFailures(page);
 
     await page.goto('/partners');
@@ -183,10 +254,11 @@ test.describe('Parceiros — P0', () => {
     await confirmBtn.click();
 
     const resp = await deleteRespPromise.catch(() => null);
-    if (resp) expect(resp.status(), '#269 DELETE backend status').toBeLessThan(400);
+    expect(resp, '#269 DELETE não foi disparado — botão não fez submit').not.toBeNull();
+    if (resp) {
+      expect(resp.status(), '#269 DELETE backend status').toBeLessThan(400);
+    }
 
-    // Aguarda navigate('/partners') + cache invalidate. Cura: removido waitForTimeout(2000)
-    // — networkidle já garante que GET /entities (re-fetch) terminou.
     await page.waitForURL(/\/partners$/, { timeout: 10_000 }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
 

@@ -3,39 +3,60 @@ import { loginAs, TEST_USERS, expectAuthenticatedOnApp } from './helpers/auth';
 import { waitForApp, navigateTo } from './helpers/navigation';
 
 /**
- * Suite: Dashboard — smoke.
+ * Suite: Dashboard — hardened smoke.
  *
- * Reduzido de 5 → 2 testes. Os 3 removidos validavam KPIs específicos
- * (MTTR, MTBF, preventiva/corretiva) — isso é regressão de feature do
- * widget, não smoke. Para smoke basta: dashboard renderiza E ao menos
- * 1 KPI core aparece (prova que o pipeline de dados está vivo).
+ * Versão anterior tinha 2 testes:
+ *   1. "renderiza sem access denied" — fraco (só ausência de texto)
+ *   2. "MTTR/MTBF renderiza" — depende de dados (falso negativo em tenant vazio)
+ *
+ * Versão hardened: 1 teste com evidências POSITIVAS de dashboard real:
+ *   - autenticado E em rota válida (não /select-company, não /onboarding)
+ *   - main element visível
+ *   - spinners de loading não estão pendurados
+ *   - main tem ao menos 1 elemento filho (não está vazia)
+ *   - ao menos 1 heading visível (proves dashboard structure rendered)
+ *
+ * Removido: assertion específica de KPIs (MTTR/MTBF). Smoke não deve depender
+ * de dados de domínio. Se dashboard quebrar, headings/main sumirão também.
  */
 
-test.describe('Dashboard — smoke', () => {
+test.describe('Dashboard — hardened smoke', () => {
   test.setTimeout(60_000);
 
-  test.beforeEach(async ({ page }) => {
+  test('dashboard renderiza com conteúdo real (não loading vazio)', async ({ page }) => {
     await loginAs(page, TEST_USERS.admin.email);
     await waitForApp(page);
     await expectAuthenticatedOnApp(page);
     await navigateTo(page, '/');
-  });
 
-  test('renderiza sem access denied', async ({ page }) => {
-    const denied = page.getByText(/acesso negado|access denied/i);
-    await expect(denied).toHaveCount(0, { timeout: 3_000 });
-  });
-
-  test('ao menos 1 KPI core (MTTR ou MTBF) renderiza', async ({ page }) => {
-    // Aguarda spinners desaparecerem (poll-based, sem waitForTimeout).
+    // Aguarda spinners desaparecerem E main ter conteúdo. Falha se ficar
+    // em loading infinito ou se main estiver vazia.
     await page
-      .waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 15_000 })
+      .waitForFunction(
+        () => {
+          const main = document.querySelector('main, [role="main"]');
+          if (!main) return false;
+          const spinners = document.querySelectorAll('.animate-spin');
+          if (spinners.length > 0) return false;
+          return main.children.length > 0;
+        },
+        { timeout: 20_000 }
+      )
       .catch(() => {});
 
-    const mttr = page.getByText(/MTTR/i).first();
-    const mtbf = page.getByText(/MTBF/i).first();
-    const hasMttr = await mttr.isVisible({ timeout: 5_000 }).catch(() => false);
-    const hasMtbf = await mtbf.isVisible({ timeout: 5_000 }).catch(() => false);
-    expect(hasMttr || hasMtbf, 'nenhum KPI core renderizou — pipeline de dados pode estar quebrado').toBe(true);
+    // Asserts explícitos pra mensagem de erro clara em caso de falha.
+    const main = page.locator('main, [role="main"]').first();
+    await expect(main, 'main element não está visível').toBeVisible({ timeout: 5_000 });
+
+    const spinners = page.locator('.animate-spin');
+    await expect(spinners, 'dashboard travou em loading (spinners ainda visíveis)').toHaveCount(0, {
+      timeout: 5_000,
+    });
+
+    const headings = page.locator('h1, h2, [role="heading"]');
+    expect(
+      await headings.count(),
+      'dashboard sem nenhum heading — provavelmente rendered vazio'
+    ).toBeGreaterThan(0);
   });
 });

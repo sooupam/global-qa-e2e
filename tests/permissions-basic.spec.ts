@@ -1,5 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { loginAs, TEST_USERS, HAS_MULTI_ROLE_USERS } from './helpers/auth';
+import {
+  loginAs,
+  TEST_USERS,
+  HAS_MULTI_ROLE_USERS,
+  expectAuthenticatedOnApp,
+} from './helpers/auth';
 import { waitForApp, navigateTo, expectNoAccessDenied } from './helpers/navigation';
 
 /**
@@ -32,6 +37,7 @@ test.describe('Permissions — smoke', () => {
   test('owner: acesso a /assets, /os e /settings/users sem access denied', async ({ page }) => {
     await loginAs(page, TEST_USERS.owner.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
 
     for (const path of ['/assets', '/os', '/settings/users']) {
       await navigateTo(page, path);
@@ -40,8 +46,10 @@ test.describe('Permissions — smoke', () => {
   });
 
   test('manager: bloqueado em /settings/users', async ({ page }) => {
+    test.skip(!HAS_MULTI_ROLE_USERS, 'sem usuário manager dedicado neste ambiente');
     await loginAs(page, TEST_USERS.manager.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
     await navigateTo(page, '/settings/users');
 
     const denied = page.getByText(/acesso negado|access denied/i);
@@ -57,6 +65,7 @@ test.describe('Permissions — smoke', () => {
     test.skip(!HAS_MULTI_ROLE_USERS, 'sem usuário technician dedicado');
     await loginAs(page, TEST_USERS.technician.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
 
     await navigateTo(page, '/assets');
     expect(await hasAction(page, /novo ativo/i), 'technician viu "Novo Ativo"').toBe(false);
@@ -69,6 +78,7 @@ test.describe('Permissions — smoke', () => {
     test.skip(!HAS_MULTI_ROLE_USERS, 'sem usuário viewer dedicado');
     await loginAs(page, TEST_USERS.viewer.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
     await navigateTo(page, '/assets');
 
     expect(await hasAction(page, /novo ativo/i), 'viewer viu "Novo Ativo"').toBe(false);

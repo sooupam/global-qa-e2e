@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { loginAs, logout, TEST_USERS, HAS_MULTI_ROLE_USERS } from './helpers/auth';
+import {
+  loginAs,
+  logout,
+  TEST_USERS,
+  HAS_MULTI_ROLE_USERS,
+  expectAuthenticatedOnApp,
+} from './helpers/auth';
 import { waitForApp, navigateTo } from './helpers/navigation';
 
 /**
@@ -64,6 +70,7 @@ test.describe('Viewer route restrictions', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, TEST_USERS.viewer.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
   });
 
   test('viewer tem acesso a /assets', async ({ page }) => {
@@ -91,6 +98,7 @@ test.describe('Technician route restrictions', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, TEST_USERS.technician.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
   });
 
   test('technician tem acesso a /os', async ({ page }) => {
@@ -111,6 +119,7 @@ test.describe('Logout limpa sessão', () => {
   test('após logout, rota protegida volta para login/sessão expirada', async ({ page }) => {
     await loginAs(page, TEST_USERS.admin.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
 
     await navigateTo(page, '/assets');
     const denied = page.getByText(/acesso negado|access denied/i);

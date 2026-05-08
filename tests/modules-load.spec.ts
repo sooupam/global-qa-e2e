@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAs, TEST_USERS } from './helpers/auth';
+import { loginAs, TEST_USERS, expectAuthenticatedOnApp } from './helpers/auth';
 import { waitForApp } from './helpers/navigation';
 
 /**
@@ -35,6 +35,7 @@ test.describe('Module boot — smoke', () => {
   test('módulos críticos carregam sem error boundary nem perda de sessão', async ({ page }) => {
     await loginAs(page, TEST_USERS.admin.email);
     await waitForApp(page);
+    await expectAuthenticatedOnApp(page);
 
     for (const { path, name } of MODULES) {
       await test.step(name, async () => {

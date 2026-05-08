@@ -46,7 +46,7 @@ Decisões já tomadas (ver histórico em commit inicial):
 
 | Métrica | Origem (legado) | Atual |
 |---------|-----------------|-------|
-| Specs raiz | 60 ativos + 15 stubs | **13** |
+| Specs raiz | 60 ativos + 15 stubs | **11** |
 | Specs IoT (`connectplus-*/`) | 29 (preservados — pipeline próprio) | **29** |
 | `waitForTimeout` total | 385 | **20** (3 em specs + 17 em helpers preservados) |
 | `networkidle` em specs raiz | distribuído | **0 nos curados (route-protection); ~10 em homolog-pamella-bugs (defensivo c/ `.catch`)** |
@@ -97,18 +97,16 @@ npx playwright test --grep "Unauthenticated"       # describe específico
 tests/
 ├── helpers/                              # auth, navigation, homolog-net, iot-context
 ├── ai-hub.spec.ts                        # AI Hub edge function viva (não 5xx)
-├── auth-flows.spec.ts                    # login UI básico
-├── connectplus-audit.spec.ts             # IoT audit smoke
+├── auth-flows.spec.ts                    # login UI: 2 tests (renderiza + erro em creds)
 ├── connectplus-smoke.spec.ts             # IoT infra smoke
-├── dashboard-kpis.spec.ts                # cards de KPI no dashboard
-├── homolog-login-rededor.spec.ts         # login no tenant Rede D'Or homolog
+├── dashboard-kpis.spec.ts                # dashboard renderiza + 1 KPI core (2 tests)
+├── homolog-login-rededor.spec.ts         # login Rede D'Or sem 4xx em user_active_company
 ├── homolog-pamella-bugs.spec.ts          # 5 P0 de regressão (RLS, triggers, cache)
-├── modules-load.spec.ts                  # 7 módulos core CMMS booting sem error boundary
+├── modules-load.spec.ts                  # 9 módulos core CMMS booting sem error boundary
 ├── multi-tenancy.spec.ts                 # RLS + companies retornam tenant_id correto
-├── navigation.spec.ts                    # navegação básica entre rotas
-├── permissions-basic.spec.ts             # RLS/permissions via UI
-├── public-routes.spec.ts                 # rotas públicas (sign-portal, qr, vendor, request, install)
-├── route-protection.spec.ts              # bloqueio de rotas sem sessão / por role
+├── permissions-basic.spec.ts             # RBAC consolidado: owner/manager/tech/viewer (4 tests)
+├── public-routes.spec.ts                 # 5 rotas públicas (sign-portal, qr, vendor, request, install)
+├── route-protection.spec.ts              # bloqueio sem sessão / por role (race waitForURL)
 ├── connectplus-automation/               # pipeline IoT (1 spec + helper)
 ├── connectplus-cadastro/                 # pipeline IoT (1 spec + helper)
 ├── connectplus-codecs/                   # codecs de dispositivos (6 specs + helper)
@@ -148,3 +146,9 @@ Para consertar lá, não aqui:
 - Se um teste virar flaky → **remover**, não adicionar `retries`.
 - Se o time precisa de cobertura nova → adicionar em adapter tests / unit, não aqui.
 - Esta suíte é um **detector de respiração**, não uma rede de segurança completa.
+
+## Documentos relacionados
+
+- **`SMOKE_POLICY.md`** — política oficial: critérios de inclusão/exclusão, exemplos de "bom smoke" vs "regressão disfarçada", quando rejeitar pedido de novo teste.
+- **`COVERAGE.md`** — auditoria de cobertura por blast radius (mapa completo do app, não só legado).
+- **`IMPORTS_QUEBRADOS.md`** — auditoria de imports após curadoria.

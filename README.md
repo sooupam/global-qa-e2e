@@ -1,50 +1,74 @@
 # global-qa-e2e
 
-Suíte E2E de smoke do GT ONE. Curada do legado em `effortone/apps/web/e2e/` (Pareto: 8 arquivos concentravam 73% do flake) para focar em sinal de sobrevivência crítica.
+**Suíte de SMOKE TESTS E2E do GT ONE.**
 
-## Resumo da cura
+Esta suíte **não busca cobertura**. Busca detectar **colapso crítico** rapidamente, com baixa manutenção e alta resiliência.
 
-| Métrica | Legado | Curado |
-|---------|--------|--------|
-| Arquivos `.spec.ts` (raiz) | 60 ativos + 15 stubs | 9 |
-| Specs IoT (`connectplus-*/`) | 21 | 21 (preservados — pipeline próprio) |
-| `waitForTimeout` | 368 | ~5 |
-| `.nth()` | 26 | 0 (nos curados) |
-| Linhas de teste | ~13.000 | ~2.000 |
-| Tempo estimado | 25–40 min | 5–10 min |
+## Filosofia minimalista
 
-## O que foi removido
+A suíte parte de 4 princípios duros:
 
-- **8 arquivos com flake epidêmico** (P0): `gx-crud`, `gx-pages`, `sign-crud`, `sign-pages`, `crud-level2-complex`, `crud-level2-cadastros`, `crud-level2-crosscutting`, `maintenance-plan-templates`, `service-requests`. Concentravam 73% dos `waitForTimeout` da suíte.
-- **15 stubs deprecados** (P0): arquivos com `// This file has been replaced by ...` esquecidos no repo.
-- **20 specs CRUD redundantes** (P1): `assets-crud`, `employees-crud`, `equipment-crud`, etc. — risco coberto melhor por adapter unit tests existentes em `apps/web/src/test/adapters/`.
-- **2 não-determinísticos** (P0): `responsive.spec.ts` (regressão visual, fora de smoke) e `copilot-ai.spec.ts` (output de IA não-determinístico).
+1. **Smoke ≠ regressão.** Esta suíte detecta "está vivo?", não "funciona corretamente?". Cobertura completa é trabalho de unit/adapter tests no repo principal (`apps/web/src/test/adapters/`).
+2. **Menos é mais.** Cada teste adicionado vira manutenção a cada release. Smoke crescer = vira regressão = perde valor.
+3. **Estabilidade > cobertura.** Um teste flaky é PIOR que não ter teste — destrói confiança no sinal.
+4. **API > UI sempre que possível.** UI muda, contrato de API não. Quando UI for indispensável, usar `getByRole`/`data-testid`, NUNCA texto i18n, NUNCA `.nth()`, NUNCA `waitForTimeout`.
 
-## O que foi curado (P2)
+## Critérios para incluir um teste novo
 
-- **`homolog-pamella-bugs.spec.ts`**: 18 → 5 testes. Mantidos os P0 que travam regressão de bugs reais reportados em produção (RLS 42501, column 42703, `record new no field name`, `uuid vs text`, ReferenceError, cache stale após delete). Removidos os com `.nth()` em form fields, os pendentes de fix, os visuais e os P1.
-- **`route-protection.spec.ts`**: 5 `waitForTimeout` substituídos por `waitForLoadState('networkidle')` ou pela poll automática de `expect()`. 3 testes redundantes consolidados em loop sobre rotas.
+Antes de adicionar qualquer spec, responder honestamente:
 
-## O que foi mantido sem mudança
+- [ ] **Detecta colapso crítico?** (Login broken, RLS broken, AI Hub down, deploy quebrado, white-screen)
+- [ ] **Roda em < 30s?**
+- [ ] **Não depende de timing/animação/CSS/i18n?**
+- [ ] **Sobrevive a redesign de UI?** (usa role/testid/contract, não texto/css/posição)
+- [ ] **Sobrevive a mudança de schema?** (não asserta forma específica de payload de domínio)
+- [ ] **É independente** dos outros testes? (não compartilha estado entre tests)
+- [ ] **Cobertura desse risco já existe** em adapter tests / unit / outro spec? Se sim → **não adicionar.**
 
-Specs já saudáveis (poucos ou zero `waitForTimeout`, `getByRole` bem usado):
+Se qualquer resposta for não, **não automatizar como smoke**. Pode virar teste de regressão noutro repo, ou QA manual.
 
-- `auth-flows.spec.ts`
-- `connectplus-audit.spec.ts`
-- `connectplus-smoke.spec.ts`
-- `dashboard-kpis.spec.ts`
-- `homolog-login-rededor.spec.ts`
-- `navigation.spec.ts`
-- `permissions-basic.spec.ts`
+## O que NÃO automatizar nesta suíte
 
-E os 21 specs de IoT em `tests/connectplus-{automation,cadastro,codecs,dispatch,threshold}/`. Esses já estavam isolados em pipeline próprio no legado e não fazem parte da cura — apenas foram movidos.
+Decisões já tomadas (ver histórico em commit inicial):
+
+- **Páginas CRUD individuais** (assets, work-orders, employees, equipment, etc.) — UI muda semanalmente, `data-testid` esparso. Risco coberto por adapter tests no repo principal.
+- **Pipeline regulatório** (RAG devices/drugs/IFA) — feature recente em alta churn.
+- **Output específico de agentes IA** (Copilot, Hospital Engineering, Comply, etc.) — não-determinístico por design.
+- **Realtime subscriptions** — timing-dependent, propenso a flake mesmo com waits robustos.
+- **Forms react-hook-form/Zod** em telas voláteis — schema muda → teste quebra.
+- **i18n strings** — 3 idiomas com missing keys ainda em correção.
+- **Detalhes visuais** — CSS, animações, layout, breakpoints, snapshots.
+- **PWA / offline / sync** — feature complexa, pertence a teste de integração específico.
+- **MFA / SSO** — dependem de provider externo, alta variabilidade.
+- **Login UI fluxo completo** — frágil (subdomain de tenant, formato chave Supabase em localStorage, texto i18n). Cobrir auth via API.
+
+## Estado atual da suíte
+
+| Métrica | Origem (legado) | Atual |
+|---------|-----------------|-------|
+| Specs raiz | 60 ativos + 15 stubs | **9** |
+| Specs IoT (`connectplus-*/`) | 29 (preservados — pipeline próprio) | **29** |
+| `waitForTimeout` total | 385 | **20** (3 em specs + 17 em helpers preservados) |
+| `networkidle` em specs raiz | distribuído | **0 nos curados (route-protection); ~10 em homolog-pamella-bugs (defensivo c/ `.catch`)** |
+| `.nth()` | 26 | **2 (em helpers preservados)** |
+| Linhas totais (`tests/`) | ~13.000 | **~6.300** (inclui helpers e IoT preservados) |
+| Tempo estimado | 25–40 min | **5–10 min** (specs raiz somente) |
+
+**Os 20 `waitForTimeout` remanescentes** estão concentrados em:
+- `helpers/navigation.ts` (13) — workaround para onboarding/tour/LGPD modals
+- `helpers/auth.ts` (3) — dismiss cascade
+- `helpers/homolog-net.ts` (1) — best-effort
+- `homolog-pamella-bugs.spec.ts` (2) — defensivos com `.catch`
+- `permissions-basic.spec.ts` (1) — defensivo
+
+Decisão: **não refatorar agora**. Fix de raiz é a flag `VITE_E2E_MODE` no app `effortone` (ver "Débito técnico" abaixo). Refatorar helpers sem o fix da raiz é trocar workaround por workaround.
 
 ## Como rodar
 
 Pré-requisitos: Node 20+ (recomendado 24+).
 
 ```bash
-cp .env.example .env  # preencha as credenciais
+cp .env.example .env  # preencha credenciais
 npm install
 npx playwright install chromium
 npm test
@@ -53,18 +77,39 @@ npm test
 Modos extras:
 
 ```bash
-npm run test:ui         # UI interativa
-npm run test:headed     # browser visível
-npm run test:report     # abre último relatório HTML
-npm run typecheck       # tsc --noEmit
+npm run test:headed   # browser visível
+npm run test:ui       # UI interativa
+npm run test:report   # abre relatório HTML do último run
+npm run typecheck     # tsc --noEmit
 ```
 
 Filtragem:
 
 ```bash
-npx playwright test homolog-pamella-bugs   # 1 arquivo
-npx playwright test --grep "@smoke"          # se houver tag
-npx playwright test tests/connectplus-codecs # subdir IoT
+npx playwright test homolog-pamella-bugs           # 1 arquivo
+npx playwright test tests/connectplus-codecs       # subdir IoT
+npx playwright test --grep "Unauthenticated"       # describe específico
+```
+
+## Estrutura
+
+```
+tests/
+├── helpers/                              # auth, navigation, homolog-net, iot-context
+├── auth-flows.spec.ts                    # login UI básico
+├── connectplus-audit.spec.ts             # IoT audit smoke
+├── connectplus-smoke.spec.ts             # IoT infra smoke
+├── dashboard-kpis.spec.ts                # cards de KPI no dashboard
+├── homolog-login-rededor.spec.ts         # login no tenant Rede D'Or homolog
+├── homolog-pamella-bugs.spec.ts          # 5 P0 de regressão (RLS, triggers, cache)
+├── navigation.spec.ts                    # navegação básica entre rotas
+├── permissions-basic.spec.ts             # RLS/permissions via UI
+├── route-protection.spec.ts              # bloqueio de rotas sem sessão / por role
+├── connectplus-automation/               # pipeline IoT (1 spec + helper)
+├── connectplus-cadastro/                 # pipeline IoT (1 spec + helper)
+├── connectplus-codecs/                   # codecs de dispositivos (6 specs + helper)
+├── connectplus-dispatch/                 # webhook/email/alert (3 specs + helper)
+└── connectplus-threshold/                # regras de threshold (16 specs + helper)
 ```
 
 ## Variáveis de ambiente
@@ -73,26 +118,29 @@ Ver `.env.example`. Em resumo:
 
 - `BASE_URL` — URL do frontend a testar.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY` — chamadas REST autenticadas.
-- `SUPABASE_SERVICE_ROLE_KEY` — apenas para a suíte `connectplus-*` (factories via PostgREST).
-- `E2E_ADMIN_EMAIL`, `E2E_PASSWORD`, `E2E_TENANT_SLUG` — usuário-robô para `helpers/auth.ts`.
-- `E2E_TENANT_ID` — UUID do tenant para asserções de multi-tenancy.
-- `HOMOLOG_*` — para `homolog-pamella-bugs.spec.ts` e `homolog-login-rededor.spec.ts`.
+- `SUPABASE_SERVICE_ROLE_KEY` — apenas para `connectplus-*` (factories via PostgREST).
+- `E2E_ADMIN_EMAIL`, `E2E_PASSWORD`, `E2E_TENANT_SLUG` — usuário-robô.
+- `E2E_TENANT_ID` — UUID de tenant para asserts de multi-tenancy.
+- `HOMOLOG_*` — para `homolog-pamella-bugs` e `homolog-login-rededor`.
 
-## Princípio operacional
+## Pendências
 
-Esta suíte detecta **colapso crítico**, não cobertura. Regras duras:
-
-1. Se um teste virar flaky e custo de manutenção > sinal: **remover**, não adicionar `retries`. Smoke flaky é veneno.
-2. Não adicionar tests novos sem tirar outros. Smoke crescer = vira regressão.
-3. Não usar `waitForTimeout`, `.nth()`, XPath, ou texto i18n como seletor.
-4. Sempre preferir API > UI. UI só quando realmente necessário (boot, redirect, error boundary).
+- [ ] **P3 — Pedir flag `VITE_E2E_MODE` no app `effortone`** que pula onboarding/LGPD/tour modais. Sem ela, `helpers/auth.ts` faz dismiss via cascata de 5 estratégias (workaround). Fix de ~20 linhas no app elimina ~17 dos 20 `waitForTimeout` que sobraram.
+- [ ] **Bucket 5 — decidir** com o time se mantém ou remove: `wo-detail-permissions`, `sectors-permissions`, `permissions-overrides`, `settings`, `cross-cutting-full` (já removidos da suíte; decisão de re-incluir como smoke fica em aberto).
+- [ ] **Migração de testes pendentes** — não há `test.skip` deliberado nesta suíte. Tests não-críticos foram **deletados** (não preservados como skip), por decisão consciente: zero ruído na suíte smoke.
 
 ## Débito técnico identificado no repo principal (`effortone`)
 
 Para consertar lá, não aqui:
 
-1. **Falta `VITE_E2E_MODE`** no app — flag para pular onboarding/LGPD/tour modais. Sem isso, `helpers/auth.ts` faz dismiss de modal via cascata de 5 estratégias (workaround). Fix de 20 linhas no app elimina ~130 `waitForTimeout` no helper.
+1. **Falta `VITE_E2E_MODE`** — flag para pular onboarding/LGPD/tour modais. Sem ela, helpers de teste fazem dismiss via cascata de 5 estratégias.
 2. **`apps/web/playwright.config.ts` tem `webServer` hardcoded** para `npm run dev` — impede rodar contra prod sem hack.
 3. **`baseURL: 'http://localhost:8080'` hardcoded** no mesmo config.
 4. **Mistura de frameworks E2E**: `apps/web/e2e/` (Playwright) + `apps/web/src/test/e2e/` (Vitest+psql direto). Padronizar.
-5. **368 `waitForTimeout` ainda no legado** mesmo após esta cura — concentrados em arquivos não migrados (CRUD redundantes que ainda rodam).
+5. **365+ `waitForTimeout` ainda no legado** mesmo após esta cura — concentrados em arquivos não migrados (CRUDs redundantes que o time decide se mantém rodando).
+
+## Princípio operacional
+
+- Se um teste virar flaky → **remover**, não adicionar `retries`.
+- Se o time precisa de cobertura nova → adicionar em adapter tests / unit, não aqui.
+- Esta suíte é um **detector de respiração**, não uma rede de segurança completa.

@@ -115,7 +115,9 @@ export async function logout(page: Page): Promise<void> {
       .filter((k) => k.startsWith('sb-') || k.includes('auth'))
       .forEach((k) => localStorage.removeItem(k));
   });
-  await page.goto('/login');
+  // waitUntil 'domcontentloaded' ao invés de default 'load' — tolerante
+  // a network slow do homolog (chunks lazy podem demorar > 30s pra "load").
+  await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30_000 });
 }
 
 /**

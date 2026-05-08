@@ -67,7 +67,7 @@ test.describe('Module boot — hardened smoke', () => {
               if (spinners.length > 0) return false;
               return main.children.length > 0;
             },
-            { timeout: 45_000 }
+            { timeout: 60_000 }
           )
           .catch(() => {});
 

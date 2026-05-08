@@ -46,7 +46,7 @@ Decisões já tomadas (ver histórico em commit inicial):
 
 | Métrica | Origem (legado) | Atual |
 |---------|-----------------|-------|
-| Specs raiz | 60 ativos + 15 stubs | **12** |
+| Specs raiz | 60 ativos + 15 stubs | **13** |
 | Specs IoT (`connectplus-*/`) | 29 (preservados — pipeline próprio) | **29** |
 | `waitForTimeout` total | 385 | **20** (3 em specs + 17 em helpers preservados) |
 | `networkidle` em specs raiz | distribuído | **0 nos curados (route-protection); ~10 em homolog-pamella-bugs (defensivo c/ `.catch`)** |
@@ -107,6 +107,7 @@ tests/
 ├── multi-tenancy.spec.ts                 # RLS + companies retornam tenant_id correto
 ├── navigation.spec.ts                    # navegação básica entre rotas
 ├── permissions-basic.spec.ts             # RLS/permissions via UI
+├── public-routes.spec.ts                 # rotas públicas (sign-portal, qr, vendor, request, install)
 ├── route-protection.spec.ts              # bloqueio de rotas sem sessão / por role
 ├── connectplus-automation/               # pipeline IoT (1 spec + helper)
 ├── connectplus-cadastro/                 # pipeline IoT (1 spec + helper)

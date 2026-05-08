@@ -23,6 +23,7 @@ const MODULES: Array<{ path: string; name: string }> = [
   { path: '/service-requests', name: 'service-requests' },
   { path: '/employees', name: 'employees' },
   { path: '/inventory', name: 'inventory' },
+  { path: '/settings', name: 'settings' },
 ];
 
 test.describe('Module boot — smoke', () => {

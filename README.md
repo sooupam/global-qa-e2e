@@ -46,7 +46,7 @@ Decisões já tomadas (ver histórico em commit inicial):
 
 | Métrica | Origem (legado) | Atual |
 |---------|-----------------|-------|
-| Specs raiz | 60 ativos + 15 stubs | **9** |
+| Specs raiz | 60 ativos + 15 stubs | **12** |
 | Specs IoT (`connectplus-*/`) | 29 (preservados — pipeline próprio) | **29** |
 | `waitForTimeout` total | 385 | **20** (3 em specs + 17 em helpers preservados) |
 | `networkidle` em specs raiz | distribuído | **0 nos curados (route-protection); ~10 em homolog-pamella-bugs (defensivo c/ `.catch`)** |
@@ -96,12 +96,15 @@ npx playwright test --grep "Unauthenticated"       # describe específico
 ```
 tests/
 ├── helpers/                              # auth, navigation, homolog-net, iot-context
+├── ai-hub.spec.ts                        # AI Hub edge function viva (não 5xx)
 ├── auth-flows.spec.ts                    # login UI básico
 ├── connectplus-audit.spec.ts             # IoT audit smoke
 ├── connectplus-smoke.spec.ts             # IoT infra smoke
 ├── dashboard-kpis.spec.ts                # cards de KPI no dashboard
 ├── homolog-login-rededor.spec.ts         # login no tenant Rede D'Or homolog
 ├── homolog-pamella-bugs.spec.ts          # 5 P0 de regressão (RLS, triggers, cache)
+├── modules-load.spec.ts                  # 7 módulos core CMMS booting sem error boundary
+├── multi-tenancy.spec.ts                 # RLS + companies retornam tenant_id correto
 ├── navigation.spec.ts                    # navegação básica entre rotas
 ├── permissions-basic.spec.ts             # RLS/permissions via UI
 ├── route-protection.spec.ts              # bloqueio de rotas sem sessão / por role

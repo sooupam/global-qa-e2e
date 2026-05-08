@@ -46,7 +46,7 @@ Decisões já tomadas (ver histórico em commit inicial):
 
 | Métrica | Origem (legado) | Atual |
 |---------|-----------------|-------|
-| Specs raiz | 60 ativos + 15 stubs | **11** |
+| Specs raiz | 60 ativos + 15 stubs | **12** |
 | Specs IoT (`connectplus-*/`) | 29 (preservados — pipeline próprio) | **29** |
 | `waitForTimeout` total | 385 | **20** (3 em specs + 17 em helpers preservados) |
 | `networkidle` em specs raiz | distribuído | **0 nos curados (route-protection); ~10 em homolog-pamella-bugs (defensivo c/ `.catch`)** |
@@ -98,6 +98,7 @@ tests/
 ├── helpers/                              # auth, navigation, homolog-net, iot-context
 ├── ai-hub.spec.ts                        # AI Hub edge function viva (não 5xx)
 ├── auth-flows.spec.ts                    # login UI: 2 tests (renderiza + erro em creds)
+├── core-modules-functional.spec.ts       # GET /rest/v1/<tabela> nos 8 módulos CORE
 ├── connectplus-smoke.spec.ts             # IoT infra smoke
 ├── dashboard-kpis.spec.ts                # dashboard renderiza + 1 KPI core (2 tests)
 ├── homolog-login-rededor.spec.ts         # login Rede D'Or sem 4xx em user_active_company

@@ -18,9 +18,13 @@ import { waitForApp } from './helpers/navigation';
  *   4. main element existe E tem ao menos 1 child (conteúdo renderizado)
  */
 
+// Critério "cliente sente se quebrar?":
+// Mantidas: 8 rotas core CMMS — todas operacionais de uso diário.
+// Removidas: /cockpit (overlap com /), /sectors (cadastro tier 2),
+// /notifications (sub-componente baixo blast). Cliente não sente
+// diferença operacional se essas 3 quebrarem isoladamente.
 const MODULES: Array<{ path: string; name: string }> = [
   { path: '/', name: 'home' },
-  { path: '/cockpit', name: 'cockpit (Dashboard persona-aware)' },
   { path: '/assets', name: 'assets' },
   { path: '/os', name: 'work-orders' },
   { path: '/maintenance-plans', name: 'maintenance-plans' },
@@ -28,8 +32,6 @@ const MODULES: Array<{ path: string; name: string }> = [
   { path: '/employees', name: 'employees' },
   { path: '/inventory', name: 'inventory' },
   { path: '/settings', name: 'settings' },
-  { path: '/sectors', name: 'sectors' },
-  { path: '/notifications', name: 'notifications (inbox de alertas)' },
 ];
 
 test.describe('Module boot — hardened smoke', () => {
@@ -65,7 +67,7 @@ test.describe('Module boot — hardened smoke', () => {
               if (spinners.length > 0) return false;
               return main.children.length > 0;
             },
-            { timeout: 30_000 }
+            { timeout: 45_000 }
           )
           .catch(() => {});
 

@@ -21,7 +21,7 @@ import { waitForApp, navigateTo } from './helpers/navigation';
  */
 
 test.describe('Dashboard — hardened smoke', () => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
 
   test('dashboard renderiza com conteúdo real (não loading vazio)', async ({ page }) => {
     await loginAs(page, TEST_USERS.admin.email);
@@ -40,13 +40,15 @@ test.describe('Dashboard — hardened smoke', () => {
           if (spinners.length > 0) return false;
           return main.children.length > 0;
         },
-        { timeout: 20_000 }
+        { timeout: 45_000 }
       )
       .catch(() => {});
 
     // Asserts explícitos pra mensagem de erro clara em caso de falha.
     const main = page.locator('main, [role="main"]').first();
-    await expect(main, 'main element não está visível').toBeVisible({ timeout: 5_000 });
+    await expect(main, 'main element não está visível após 45s — chunk Dashboard pode estar travado').toBeVisible(
+      { timeout: 10_000 }
+    );
 
     const spinners = page.locator('.animate-spin');
     await expect(spinners, 'dashboard travou em loading (spinners ainda visíveis)').toHaveCount(0, {

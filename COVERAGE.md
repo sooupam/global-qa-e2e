@@ -85,7 +85,7 @@ Estados:
 
 | Estado | Quantidade |
 |--------|------------|
-| COBERTO (raiz) | **12 specs** (3 cobrem ≥1 módulo cada) |
+| COBERTO (raiz) | **10 specs** (todas justificadas pelo critério "cliente sente se quebrar?") |
 | COBERTO (IoT subdirs) | 29 specs |
 | SUFICIENTE | 2 módulos |
 | SKIP intencional | ~30 módulos |

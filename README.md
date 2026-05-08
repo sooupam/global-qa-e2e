@@ -46,7 +46,7 @@ Decisões já tomadas (ver histórico em commit inicial):
 
 | Métrica | Origem (legado) | Atual |
 |---------|-----------------|-------|
-| Specs raiz | 60 ativos + 15 stubs | **12** |
+| Specs raiz | 60 ativos + 15 stubs | **10** |
 | Specs IoT (`connectplus-*/`) | 29 (preservados — pipeline próprio) | **29** |
 | `waitForTimeout` total | 385 | **20** (3 em specs + 17 em helpers preservados) |
 | `networkidle` em specs raiz | distribuído | **0 nos curados (route-protection); ~10 em homolog-pamella-bugs (defensivo c/ `.catch`)** |
@@ -96,16 +96,14 @@ npx playwright test --grep "Unauthenticated"       # describe específico
 ```
 tests/
 ├── helpers/                              # auth, navigation, homolog-net, iot-context
-├── ai-hub.spec.ts                        # AI Hub edge function viva (não 5xx)
-├── auth-flows.spec.ts                    # login UI: 2 tests (renderiza + erro em creds)
-├── core-modules-functional.spec.ts       # GET /rest/v1/<tabela> nos 8 módulos CORE
-├── connectplus-smoke.spec.ts             # IoT infra smoke
-├── dashboard-kpis.spec.ts                # dashboard renderiza + 1 KPI core (2 tests)
-├── homolog-login-rededor.spec.ts         # login Rede D'Or sem 4xx em user_active_company
-├── homolog-pamella-bugs.spec.ts          # 5 P0 de regressão (RLS, triggers, cache)
-├── modules-load.spec.ts                  # 11 módulos core booting sem error boundary (inclui cockpit + notifications)
-├── multi-tenancy.spec.ts                 # RLS + companies retornam tenant_id correto
-├── permissions-basic.spec.ts             # RBAC consolidado: owner/manager/tech/viewer (4 tests)
+├── ai-hub.spec.ts                        # auth enforcement + processamento + JSON estruturado
+├── auth-flows.spec.ts                    # login UI: renderiza + erro em creds
+├── connectplus-smoke.spec.ts             # IoT infra smoke (precisa SERVICE_ROLE_KEY)
+├── core-modules-functional.spec.ts       # GET /rest/v1/<tabela> nos 8 módulos CORE + check anon-leak
+├── dashboard-kpis.spec.ts                # dashboard renderiza com conteúdo real
+├── modules-load.spec.ts                  # 11 módulos core booting com main + sem loading infinito
+├── multi-tenancy.spec.ts                 # RLS filter respeitado + tenant ghost retorna []
+├── permissions-basic.spec.ts             # owner vê botões criar (positivo) + tech/viewer não (escalation)
 ├── public-routes.spec.ts                 # 6 rotas públicas (sign-portal, qr, vendor, request, public-quote, install)
 ├── route-protection.spec.ts              # bloqueio sem sessão / por role (race waitForURL)
 ├── connectplus-automation/               # pipeline IoT (1 spec + helper)

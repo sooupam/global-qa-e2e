@@ -128,3 +128,13 @@ Nunca:
 ## Decisão final em 1 frase
 
 > **Se o teste cair em produção e o time não acordar para investigar, ele não é smoke.**
+
+## Regra adicional (pós-pivot operacional)
+
+> **Se o módulo quebrar em produção HOJE e o cliente NÃO sentir, o teste não pertence a essa suíte.**
+
+Bugs históricos específicos (proteção de regressão de PG codes, triggers SQL,
+ReferenceErrors históricos) **não são smoke**. São regressão. Pertencem a outra
+camada (regression suite separada, adapter tests no repo principal, ou QA
+manual antes de release). Esta suíte é guiada por **risco operacional atual**,
+não por histórico de bugs.
